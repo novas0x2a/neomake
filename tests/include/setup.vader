@@ -127,7 +127,7 @@ Before:
                 \  ."expected nothing, but got '%s'.", a:msg, k, string(v))
           else
             try
-              let same = (v ==# expected)
+              let same = v ==# expected
             catch
               throw printf(
                 \ "Could not compare jobinfo entries (expected: %s, actual: %s): %s",
