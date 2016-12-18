@@ -89,3 +89,22 @@ Execute (NeomakeSh: serialized after doesnotexist: abort):
   NeomakeTestsWaitForFinishedJobs
   AssertEqual len(g:neomake_test_finished), 1
   AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['success']
+
+Execute (Neomake#Make cancels previous jobs):
+  if !NeomakeAsyncTestsSetup() | finish | endif
+
+  let first_jobs = neomake#Make(1, [sleep_maker, maker_error])
+  let make_id = neomake#GetStatus().last_make_id
+  sleep 50m
+  call neomake#Make(1, [sleep_maker, maker_error])
+  NeomakeTestsWaitForFinishedJobs
+  AssertEqual len(g:neomake_test_jobfinished), 2
+  AssertEqual len(g:neomake_test_finished), 1
+  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['slept', 'error']
+
+  AssertEqual neomake#GetStatus().last_make_id, make_id + 1, 'two make instance'
+
+  for j in first_jobs
+    AssertNeomakeMessage 'Restarting already running job ('
+    \ .make_id.'.'.j.') for the same maker.', 2, {'make_id': make_id+1}
+  endfor
