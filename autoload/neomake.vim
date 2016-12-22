@@ -135,7 +135,7 @@ function! s:MakeJob(make_id, options) abort
     let maker = a:options.maker
     let jobinfo = {
         \ 'name': 'neomake_'.job_id,
-        \ 'bufnr': bufnr('%'),
+        \ 'bufnr': a:options.bufnr,
         \ 'file_mode': a:options.file_mode,
         \ 'maker': maker,
         \ 'make_id': a:make_id,
@@ -493,14 +493,20 @@ function! s:HandleLoclistQflistDisplay(file_mode) abort
 endfunction
 
 function! s:Make(options) abort
-    " call neomake#utils#DebugMessage('Calling s:Make: '.string(a:options))
-    let file_mode = get(a:options, 'file_mode', 0)
-    let enabled_makers = get(a:options, 'enabled_makers', [])
-    let buf = get(a:options, 'bufnr', bufnr('%'))
-    let ft = get(a:options, 'ft', '')
+    let options = copy(a:options)
+    call extend(options, {
+                \ 'file_mode': 0,
+                \ 'enabled_makers': [],
+                \ 'bufnr': bufnr('%'),
+                \ 'ft': '',
+                \ }, 'keep')
+    let bufnr = options.bufnr
+    let file_mode = options.file_mode
+    let enabled_makers = options.enabled_makers
+    let ft = options.ft
 
     " Reset/clear on first run, but not when using 'serialize'.
-    if !get(a:options, 'continuation', 0)
+    if !get(options, 'continuation', 0)
         if !len(enabled_makers)
             if file_mode
                 call neomake#utils#DebugMessage('Nothing to make: no enabled makers.')
@@ -515,7 +521,7 @@ function! s:Make(options) abort
                     \ }
 
         if file_mode
-            call neomake#statusline#ResetCountsForBuf(buf)
+            call neomake#statusline#ResetCountsForBuf(bufnr)
         else
             call neomake#statusline#ResetCountsForProject()
         endif
@@ -536,9 +542,9 @@ function! s:Make(options) abort
 
         if file_mode
             if g:neomake_place_signs
-                call neomake#signs#ResetFile(buf)
+                call neomake#signs#ResetFile(bufnr)
             endif
-            let s:need_errors_cleaning['file'][buf] = 1
+            let s:need_errors_cleaning['file'][bufnr] = 1
         else
             if g:neomake_place_signs
                 call neomake#signs#ResetProject()
@@ -567,10 +573,10 @@ function! s:Make(options) abort
         if len(s:jobs)
             let running_already = values(filter(copy(s:jobs),
                         \ 'v:val.make_id != s:make_id && v:val.maker == maker'
-                        \ ." && v:val.bufnr == buf && !get(v:val, 'restarting')"))
+                        \ ." && v:val.bufnr == bufnr && !get(v:val, 'restarting')"))
             if len(running_already)
                 let jobinfo = running_already[0]
-                " let jobinfo.next = copy(a:options)
+                " let jobinfo.next = copy(options)
                 " TODO: required?! (
                 " let jobinfo.next.enabled_makers = [maker]
                 call neomake#utils#LoudMessage(printf(
@@ -581,14 +587,8 @@ function! s:Make(options) abort
             endif
         endif
 
-        let options = {
-                    \ 'file_mode': file_mode,
-                    \ 'maker': maker,
-                    \ }
-
         if neomake#has_async_support()
-            " XXX: still uses current buffer?!
-            let serialize = neomake#utils#GetSetting('serialize', maker, 0, [ft], buf)
+            let serialize = neomake#utils#GetSetting('serialize', maker, 0, [ft], bufnr)
         else
             let serialize = 1
         endif
@@ -598,15 +598,16 @@ function! s:Make(options) abort
             let next_opts.continuation = 1
             call extend(next_opts, {
                     \ 'file_mode': file_mode,
-                    \ 'bufnr': buf,
+                    \ 'bufnr': bufnr,
                     \ 'serialize_abort_on_error':
-                    \    neomake#utils#GetSetting('serialize_abort_on_error', {}, 0, [ft], buf),
+                    \    neomake#utils#GetSetting('serialize_abort_on_error', maker, 0, [ft], bufnr),
                     \ })
             let options.next = next_opts
         endif
         if has_key(a:options, 'exit_callback')
             let options.exit_callback = a:options.exit_callback
         endif
+        let options.maker = maker
         let job_id = s:MakeJob(s:make_id, options)
         if job_id != -1
             call add(job_ids, job_id)
