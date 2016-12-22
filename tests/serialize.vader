@@ -49,6 +49,20 @@ Execute (NeomakeSh: serialized with buffer overriding global abort):
   AssertEqual len(g:neomake_test_finished), 1
   AssertEqual map(copy(getqflist()), 'v:val.text'), ['error', 'success']
 
+Execute (NeomakeSh: serialized with abort from maker):
+  call g:NeomakeSetupAutocmdWrappers()
+
+  let maker_error_abort = copy(maker_error)
+  let maker_error_abort.serialize = 1
+  let maker_error_abort.serialize_abort_on_error = 1
+
+  call neomake#Make(1, [maker_error_abort, maker_success])
+  NeomakeTestsWaitForFinishedJobs
+  AssertEqual len(g:neomake_test_jobfinished), 1
+  AssertEqual len(g:neomake_test_finished), 1
+  AssertNeomakeMessage 'Aborting next makers [success-maker] (status 1)'
+  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['error']
+
 Execute (NeomakeSh: serialized with previous buffer overriding global abort):
   if !NeomakeAsyncTestsSetup() | finish | endif
 
@@ -115,3 +129,52 @@ Execute (Neomake#Make does not cancel maker from same run):
   call neomake#Make(0, [maker_success, maker_success])
   NeomakeTestsWaitForFinishedJobs
   AssertEqual map(copy(getqflist()), 'v:val.text'), ['success', 'success']
+
+Execute (Neomake#Make handles cwd properly):
+  if !NeomakeAsyncTestsSetup() | finish | endif
+
+  Save g:neomake_serialize
+  let g:neomake_serialize = 1
+
+  let orig_cwd = getcwd()
+  cd build
+  try
+    file file1
+    " To make it stick to the current dir.
+    set buftype=
+    let file1 = expand('%:p')
+    let cwd = fnamemodify(getcwd(), ':t')
+
+    " Create a new window/buffer, with a different working dir.
+    new
+    file file2
+    if !isdirectory('dir1')
+      call mkdir('dir1', '', 0770)
+    endif
+    lcd dir1
+    wincmd p
+
+    let g:neomake_test_exit_cb = []
+    let maker1 = NeomakeTestsCommandMaker('maker1', 'echo maker_1 ${PWD##*/}: ')
+    function! maker1.exit_callback(cb_dict) dict
+      let g:neomake_test_exit_cb += [a:cb_dict]
+      " Change to other window with different cwd.
+      wincmd p
+    endfunction
+    let maker2 = NeomakeTestsCommandMaker('maker2', 'echo maker_2 ${PWD##*/}: ')
+    let maker3 = {'name': 'maker3', 'errorformat': '%m', 'exe': 'echo maker_3', 'args': ''}
+
+    call neomake#Make(1, [maker1, maker2, maker3])
+    NeomakeTestsWaitForFinishedJobs
+    " Trigger processing.
+    wincmd p
+    " Cleanup.
+    wincmd p
+    bd
+  finally
+    exe 'cd '.orig_cwd
+  endtry
+
+  AssertEqual g:neomake_test_exit_cb, [{'status': 0, 'name': 'maker1', 'has_next': 0}]
+  AssertEqual map(copy(getloclist(0)), 'v:val.text'),
+  \ ['maker_1 build: '.file1, 'maker_2 build: '.file1, 'maker_3 '.file1]
