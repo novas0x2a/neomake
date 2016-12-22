@@ -214,6 +214,8 @@ function! neomake#makers#ft#python#python() abort
             \ '    exit(1)'
         \ ],
         \ 'errorformat': '%E%f:%l:%c: %m',
+        \ 'serialize': 1,
+        \ 'serialize_abort_on_error': 1,
         \ }
 endfunction
 
