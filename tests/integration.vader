@@ -205,7 +205,7 @@ Execute (NeomakeInfo with FuncRef):
   set filetype=c
   let g:neomake_c_enabled_makers = ['doesnotexist']
   let g:neomake_c_doesnotexist_maker = {
-  \ 'args': function('tr'),
+  \ 'args': function('getcwd'),
   \ 'errorformat': 'custom_efm: %m'}
 
   let info = split(neomake#utils#redir('NeomakeInfo'), '\n')
@@ -215,7 +215,7 @@ Execute (NeomakeInfo with FuncRef):
       \ 'For the current filetype (with :Neomake):',
       \ ' - doesnotexist',
       \ '   errorformat: ''custom_efm: %m''',
-      \ '   args: function(''tr'')',
+      \ '   args: function(''getcwd'')',
       \ '   exe: ''doesnotexist''']
     let i = index(info, line)
     Assert i > idx, 'line not found: '.line
@@ -313,8 +313,11 @@ Execute (Neomake: non-existing and proper job):
   let b:neomake_enabled_makers = ['maker1', 'maker2']
   Neomake! maker1 maker2
   NeomakeTestsWaitForFinishedJobs
-  if has('nvim')
+  if has('nvim-0.1.8')
     AssertNeomakeMessage 'Executable not found', 0
+  elseif has('nvim')
+    AssertNeomakeMessage 'Failed to start Neovim job: [''doesnotexist'']: '
+      \ .'Vim(let):E902: "doesnotexist" is not an executable'
   else
     AssertNeomakeMessage 'Vim job failed to run: executing job failed: No such file or directory'
   endif
