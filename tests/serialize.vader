@@ -7,7 +7,7 @@ Execute (Setup):
   endfunction
 
   let sleep_maker = NeomakeTestsCommandMaker('sleep-maker', 'sleep .1; echo slept')
-  let maker_error = NeomakeTestsCommandMaker('error-maker', 'sleep .1; echo error; false')
+  let maker_error = NeomakeTestsCommandMaker('error-maker', 'echo error; false')
   let maker_success = NeomakeTestsCommandMaker('success-maker', 'echo success')
 
   let doesnotexist_maker = {
@@ -22,7 +22,8 @@ Execute (NeomakeSh: simple serialized makers):
   call neomake#Make(1, [maker_error, maker_success])
   NeomakeTestsWaitForFinishedJobs
   AssertEqual len(g:neomake_test_finished), 1
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['error', 'success']
+  AssertEqual map(copy(getloclist(0)), 'v:val.text'),
+  \ ['error', 'success '.expand('%:p')]
 
 Execute (NeomakeSh: serialized with global abort):
   call g:NeomakeSetupAutocmdWrappers()
@@ -42,11 +43,11 @@ Execute (NeomakeSh: serialized with buffer overriding global abort):
   Save g:neomake_serialize
   let g:neomake_serialize = 1
 
-  call neomake#Make(1, [maker_error, maker_success])
+  call neomake#Make(0, [maker_error, maker_success])
   NeomakeTestsWaitForFinishedJobs
   AssertEqual len(g:neomake_test_jobfinished), 2
   AssertEqual len(g:neomake_test_finished), 1
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['error', 'success']
+  AssertEqual map(copy(getqflist()), 'v:val.text'), ['error', 'success']
 
 Execute (NeomakeSh: serialized with previous buffer overriding global abort):
   if !NeomakeAsyncTestsSetup() | finish | endif
@@ -64,7 +65,7 @@ Execute (NeomakeSh: serialized with previous buffer overriding global abort):
 
   wincmd p
 
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['slept', 'error']
+  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['slept '.expand('%:p'), 'error']
   wincmd p
   bd
 
@@ -74,10 +75,10 @@ Execute (NeomakeSh: serialized after doesnotexist: continue):
   Save g:neomake_serialize
   let g:neomake_serialize = 1
 
-  call neomake#Make(1, [doesnotexist_maker, maker_success])
+  call neomake#Make(0, [doesnotexist_maker, maker_success])
   NeomakeTestsWaitForFinishedJobs
   AssertEqual len(g:neomake_test_finished), 1
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['success']
+  AssertEqual map(copy(getqflist()), 'v:val.text'), ['success']
 
 Execute (NeomakeSh: serialized after doesnotexist: abort):
   call g:NeomakeSetupAutocmdWrappers()
@@ -85,22 +86,21 @@ Execute (NeomakeSh: serialized after doesnotexist: abort):
   let g:neomake_serialize = 1
 
   let doesnotexist_maker.serialize_abort_on_error = 1
-  call neomake#Make(1, [doesnotexist_maker, maker_success])
+  call neomake#Make(0, [doesnotexist_maker, maker_success])
   NeomakeTestsWaitForFinishedJobs
   AssertEqual len(g:neomake_test_finished), 1
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['success']
+  AssertEqual map(copy(getqflist()), 'v:val.text'), ['success']
 
 Execute (Neomake#Make cancels previous jobs):
   if !NeomakeAsyncTestsSetup() | finish | endif
 
-  let first_jobs = neomake#Make(1, [sleep_maker, maker_error])
+  let first_jobs = neomake#Make(0, [sleep_maker, maker_error])
   let make_id = neomake#GetStatus().last_make_id
-  sleep 50m
-  call neomake#Make(1, [sleep_maker, maker_error])
+  call neomake#Make(0, [sleep_maker, maker_error])
   NeomakeTestsWaitForFinishedJobs
   AssertEqual len(g:neomake_test_jobfinished), 2
   AssertEqual len(g:neomake_test_finished), 1
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['slept', 'error']
+  AssertEqual map(copy(getqflist()), 'v:val.text'), ['error', 'slept']
 
   AssertEqual neomake#GetStatus().last_make_id, make_id + 1, 'two make instance'
 
@@ -112,6 +112,6 @@ Execute (Neomake#Make cancels previous jobs):
 Execute (Neomake#Make does not cancel maker from same run):
   if !NeomakeAsyncTestsSetup() | finish | endif
 
-  call neomake#Make(1, [maker_success, maker_success])
+  call neomake#Make(0, [maker_success, maker_success])
   NeomakeTestsWaitForFinishedJobs
-  AssertEqual map(copy(getloclist(0)), 'v:val.text'), ['success', 'success']
+  AssertEqual map(copy(getqflist()), 'v:val.text'), ['success', 'success']
