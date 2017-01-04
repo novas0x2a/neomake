@@ -25,6 +25,25 @@ function! neomake#makers#ft#go#go()
         \ }
 endfunction
 
+function! neomake#makers#ft#go#gometalinter()
+    return {
+    \ 'args': [
+    \     '--disable-all',
+    \     '-E', 'vet',
+    \     '-E', 'golint',
+    \     '-E', 'errcheck',
+    \     '--message-overrides', 'errcheck:{message}',
+    \     '--sort', 'line',
+    \     '--tests',
+    \     '--exclude', 'bindata',
+    \     '--exclude', '.pb.',
+    \     '--enable-gc',
+    \ ],
+    \ 'make_filename': function('s:RelativeModulePath'),
+    \ 'errorformat': '%W%f:%l:%c:%t%*[^:]: %m'
+\ }
+endfunction
+
 function! neomake#makers#ft#go#golint()
     return {
         \ 'errorformat':
